@@ -1,0 +1,3 @@
+4eb83e742994161e790bd94a1f9f5a9cf8e4dbaefbcec504b32d83dd8a11722b  dist/ETC-NetGuard.exe
+189e26335494fd9e2e6c9dc76c5249cfb8641e01deee68fdeb18e62b692c5a5d  dist/ETC-NetGuard-Setup-1.1.0.exe
+68fcf1e6644bb250cf062c646c533d315d8ebb8aa660562c708231f21796a57f  release/etc-code-signing.cer

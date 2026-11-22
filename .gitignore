@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller / build
+build/
+dist/
+*.spec
+
+# Local runtime data and previews
+preview/config*/
+preview/shots/debug-*
+*.log
+
+# Signing secrets: never commit private keys or PFX files
+*.pfx
+*.p12
+*.key
+*.pem
+release/private/
