@@ -178,7 +178,7 @@ class AddSiteDialog(DialogShell):
         title_col = QVBoxLayout()
         title_col.setSpacing(3)
         title_col.addWidget(label("添加禁用网站", "H2"))
-        title_col.addWidget(label("命中规则后，浏览器会收到 404 拦截页。", "Muted"))
+        title_col.addWidget(label("直接输入域名即可，不用写 http://；会自动覆盖常用子域名。", "Muted"))
         head.addLayout(title_col, 1)
         self.add_close_button(head)
         self.content.addLayout(head)
@@ -190,7 +190,8 @@ class AddSiteDialog(DialogShell):
         self.url.setFixedHeight(42)
         self.url.textChanged.connect(self._preview)
         self.content.addWidget(self.url)
-        self.preview = label("将同时拦截主域名与 www 子域", "Tiny")
+        self.preview = label("将同时拦截主域名及其 www / m / mobile 等子域", "Tiny")
+        self.preview.setWordWrap(True)
         self.content.addWidget(self.preview)
 
         self.content.addSpacing(6)
@@ -229,7 +230,9 @@ class AddSiteDialog(DialogShell):
             self.preview.setText("输入完整网址，例如 www.example.com/page")
             self.preview.setStyleSheet(f"color:{MUTED};")
         else:
-            self.preview.setText("将拦截：" + "  ·  ".join(backend.domain_variants(d)))
+            variants = backend.domain_variants(d)
+            head = "  ·  ".join(variants[:4])
+            self.preview.setText(f"将拦截 {len(variants)} 个地址：{head} 等")
             self.preview.setStyleSheet(f"color:{ACCENT};")
 
     def _accept(self):

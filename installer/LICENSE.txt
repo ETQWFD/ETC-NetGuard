@@ -1,6 +1,6 @@
 ﻿ETC NetGuard 最终用户许可协议（EULA）
 
-版本 1.2.0  ·  作者 etc  ·  开源仓库 https://github.com/ETQWFD/ETC-NetGuard
+版本 1.2.1  ·  作者 etc  ·  开源仓库 https://github.com/ETQWFD/ETC-NetGuard
 
 一、软件用途
 ETC NetGuard 是一款安装在 Windows 电脑上的本地网络与应用程序管理工具，主要供设备所有者、家长或监护人用于防止未成年人误操作、过度上网或随意运行指定程序。它提供按进程限速与断网、网站 404 拦截、应用黑名单、关闭密码、托盘互锁与限制命令提示符/任务管理器/浏览器等功能。

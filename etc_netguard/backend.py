@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "ETC NetGuard"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 AUTHOR = "etc"
 REPO_URL = "https://github.com/ETQWFD/ETC-NetGuard"
 
@@ -474,6 +474,8 @@ def normalize_domain(text: str) -> str:
     text = text.split("@")[-1]
     text = text.split(":")[0]
     text = text.strip(".")
+    if text.startswith("*."):
+        text = text[2:]
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+", text):
         return ""
     return text
@@ -489,7 +491,16 @@ def domain_variants(domain: str) -> list[str]:
         if d.startswith(prefix) and "." in d[len(prefix):]:
             apex = d[len(prefix):]
             break
-    out = [d, apex, "www." + apex, "m." + apex, "mobile." + apex]
+    # hosts has no wildcard syntax.  Cover the subdomain names browsers and
+    # mobile apps actually use, so typing only "example.com" blocks the site
+    # and its common front doors (www / m / mobile / cdn / api / ...).
+    prefixes = (
+        "www", "m", "mobile", "wap", "web", "api", "cdn", "static",
+        "img", "images", "video", "music", "live", "h5", "app",
+        "download", "passport", "login", "pay", "service",
+    )
+    out = [d, apex]
+    out += [p + "." + apex for p in prefixes]
     return list(dict.fromkeys(out))
 
 

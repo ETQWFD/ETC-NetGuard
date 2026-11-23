@@ -9,7 +9,7 @@ SetCompressorDictSize 64
 !include "FileFunc.nsh"
 
 !define APP_NAME "ETC NetGuard"
-!define APP_VERSION "1.2.0"
+!define APP_VERSION "1.2.1"
 !define APP_PUBLISHER "etc"
 !define APP_EXE "ETC-NetGuard.exe"
 !define APP_REPO "https://github.com/ETQWFD/ETC-NetGuard"
@@ -23,12 +23,12 @@ InstallDirRegKey HKLM "${APP_KEY}" "InstallLocation"
 RequestExecutionLevel admin
 BrandingText "${APP_NAME} · by etc"
 
-VIProductVersion "1.2.0.0"
+VIProductVersion "1.2.1.0"
 VIAddVersionKey /LANG=2052 "ProductName" "${APP_NAME}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=2052 "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey /LANG=2052 "FileDescription" "${APP_NAME} 安装程序"
-VIAddVersionKey /LANG=2052 "FileVersion" "1.2.0.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "1.2.1.0"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 etc"
 VIAddVersionKey /LANG=2052 "OriginalFilename" "ETC-NetGuard-Setup-${APP_VERSION}.exe"
 
