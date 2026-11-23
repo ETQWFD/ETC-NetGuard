@@ -1,6 +1,6 @@
 # ETC NetGuard
 
-一款给 Windows 电脑用的本地网络与家长控制工具。作者 **etc**。
+一款用于 Windows / Linux 的本地网络与家长控制工具。作者 **etc**。
 
 按进程限速 / 彻底断网、让指定网站返回 **404**、程序黑名单、关闭密码、托盘互锁，界面是深色无边框卡片风格。
 
@@ -18,6 +18,7 @@
 - 退出时等待扫描/规则线程结束，避免 QThread 运行中被销毁造成崩溃；新增 `error.log` 崩溃日志。
 - 修复 NSIS 安装程序左侧欢迎图的中文乱码，重新生成 164×314 欢迎图与 150×57 顶部图，版本同步为 1.2.1。
 - 域名输入支持不带 `http://`、带路径/端口、`*.` 前缀；自动覆盖 `www`、`m`、`mobile`、`wap`、`api`、`cdn` 等 20 个常用子域。
+- 新增 Debian/Ubuntu `.deb` 安装包：Linux 版网站 hosts + 404 服务真实可用，QoS/进程防火墙明确标记为 Windows 专用。
 
 ## 功能
 
@@ -54,10 +55,30 @@
 | `ETC-NetGuard-Setup-1.2.1.exe` | NSIS 安装程序（推荐） |
 | `etc-code-signing.cer` | 作者自签名代码签名**公钥证书**，可导入“受信任的根证书颁发机构” |
 | `SHA256SUMS.txt` | 各产物的 SHA-256 校验值 |
+| `etc-netguard_1.2.1_amd64.deb` | Debian/Ubuntu Linux 安装包（网站拦截可用；QoS/防火墙为 Windows 专用） |
 
 ![安装程序欢迎页](docs/screenshots/13-installer-welcome.png)
 
+![Linux .deb 运行界面](docs/screenshots/14-linux-deb.png)
+
 安装包与 EXE 使用作者自签名证书（主题 `etc`），不是商业 CA 证书。Windows 首次运行可能提示“未知发布者”或 SmartScreen；把 `etc-code-signing.cer` 导入“受信任的根证书颁发机构”后可消除本机警告。请核对 SHA-256 后再运行。
+
+### Linux `.deb`
+
+```bash
+sudo dpkg -i etc-netguard_1.2.1_amd64.deb
+sudo apt-get -f install   # 如提示缺依赖
+```
+
+安装后从应用菜单启动，或终端执行：
+
+```bash
+sudo etc-netguard
+```
+
+Linux 版需要 root：它会写 `/etc/hosts`，并在 `127.0.0.1:80` 提供 404 页面。桌面启动通过 polkit 弹窗授权；配置文件位于 `/var/lib/etc-netguard/ETCNetGuard/config.json`。
+
+Linux 版真实可用：网站域名拦截、404 页面、进程列表、密码/托盘、新手引导。**按进程 QoS 限速和按进程防火墙断网是 Windows 内核能力，Linux 包会明确提示不支持**，不会伪装成已生效。
 
 证书 SHA-256 指纹：`68:FC:F1:E6:64:4B:B2:50:CF:06:2C:64:6C:53:3D:31:5D:8E:BB:8A:A6:60:56:2C:70:82:31:F2:17:96:A5:7F`
 
@@ -106,6 +127,15 @@ makensis installer/installer.nsi
 osslsigncode sign -pkcs12 etc-codesign.pfx -pass <password> \
   -n "ETC NetGuard" -i https://github.com/ETQWFD/ETC-NetGuard \
   -in dist/ETC-NetGuard.exe -out dist/ETC-NetGuard-signed.exe
+```
+
+Linux `.deb` 构建：
+
+```bash
+pyinstaller --noconfirm --clean --onedir --windowed --name ETC-NetGuard-Linux \
+  --add-data 'assets:assets' --hidden-import PyQt5.QtSvg \
+  --distpath build/linux-dist --workpath build/linux-work run.py
+bash packaging/linux/build_deb.sh
 ```
 
 ## 源码结构

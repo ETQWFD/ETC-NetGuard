@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ETC NetGuard
+Name[zh_CN]=ETC NetGuard
+GenericName=Network Control
+GenericName[zh_CN]=网络控制
+Comment=Local website blocker and process network control for Linux
+Comment[zh_CN]=Linux 本地网站拦截与进程网络管理
+Exec=/usr/bin/etc-netguard
+Icon=etc-netguard
+Terminal=false
+StartupNotify=true
+Categories=Utility;Network;Security;
+Keywords=parental;website;blocker;hosts;network;家长;网站;拦截;

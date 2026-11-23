@@ -1,3 +1,4 @@
 c9a19f8a9bd2008e4a74f097c53aea968c7688935f94ddf353caf3a070e0e1d8  dist/ETC-NetGuard.exe
 74ebd483f2879cf01e6d012b39fb6f593335638c9c027b8b3c32353dfb6fa420  dist/ETC-NetGuard-Setup-1.2.1.exe
 68fcf1e6644bb250cf062c646c533d315d8ebb8aa660562c708231f21796a57f  release/etc-code-signing.cer
+e6d31568d401b53f7ab0983c6c96b9a9d298ed459ce375d80629c9a233f6facd  dist/etc-netguard_1.2.1_amd64.deb

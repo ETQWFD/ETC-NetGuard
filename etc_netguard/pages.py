@@ -957,7 +957,7 @@ class SettingsPage(Page):
         sl.addWidget(label("运行状态", "H2"))
         self.admin_row = self._info_row("shield-check", "管理员权限", "检查中…")
         sl.addLayout(self.admin_row[0])
-        self.version_row = self._info_row("sparkles", "版本", f"v{backend.APP_VERSION} · 桌面版")
+        self.version_row = self._info_row("sparkles", "版本", f"v{backend.APP_VERSION} · " + ("Linux 版" if not backend.IS_WINDOWS else "桌面版"))
         sl.addLayout(self.version_row[0])
         self.server_row = self._info_row("globe", "404 拦截服务", "未启动")
         sl.addLayout(self.server_row[0])
@@ -999,6 +999,8 @@ class SettingsPage(Page):
         ml.setContentsMargins(20, 18, 20, 18)
         ml.addWidget(label("维护", "H2"))
         ml.addWidget(label("清除规则会立刻移除 QoS 限速、防火墙断网与 hosts 拦截，并停止本地 404 服务。", "Muted"))
+        if not backend.IS_WINDOWS:
+            ml.addWidget(label("Linux 版：网站拦截与 404 服务可用；按进程 QoS 限速/防火墙断网为 Windows 专用。", "Tiny"))
         self.security_info = label("", "Tiny")
         ml.addWidget(self.security_info)
         row = QHBoxLayout()

@@ -1,0 +1,19 @@
+Package: etc-netguard
+Version: 1.2.1
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: etc <et2416444244@outlook.com>
+Installed-Size: __SIZE__
+Depends: libc6 (>= 2.31), libgl1, libegl1, libx11-6, libxext6, libxrender1, libxcb1, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xkb1, libxkbcommon0, libxkbcommon-x11-0, libfontconfig1, libfreetype6, libdbus-1-3, libglib2.0-0, libsm6, libice6, pkexec | policykit-1
+Recommends: fonts-noto-cjk, xdg-utils
+Homepage: https://github.com/ETQWFD/ETC-NetGuard
+Description: ETC NetGuard - local network and website control
+ ETC NetGuard is a local, reversible parental-control utility. On Linux it
+ blocks configured domains through /etc/hosts and a local HTTP 404 server;
+ it also provides process listing, apply restrictions, password and tray
+ controls. Per-process QoS bandwidth limits and per-process firewall blocks
+ are Windows-only and are explicitly reported as unsupported on Linux.
+ .
+ The application needs root privileges because it edits /etc/hosts and binds
+ 127.0.0.1:80. Launch it from the desktop icon or with "sudo etc-netguard".

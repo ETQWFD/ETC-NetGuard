@@ -125,7 +125,10 @@ def is_admin() -> bool:
     if PREVIEW:
         return True
     if not IS_WINDOWS:
-        return False
+        try:
+            return os.geteuid() == 0
+        except Exception:
+            return False
     try:
         return bool(ctypes.windll.shell32.IsUserAnAdmin())
     except Exception:
@@ -344,6 +347,8 @@ def list_processes() -> list[dict]:
 # ---------------------------------------------------------------------------
 def apply_limits(items: list[dict], bps: int) -> tuple[bool, str]:
     """items: [{path,name}] - create/replace one QoS policy per executable."""
+    if not IS_WINDOWS:
+        return False, "Linux 版暂不支持按进程 QoS 限速；请使用 Windows 版"
     items = [x for x in items if x.get("path")]
     if not items:
         return False, "请先在首页勾选需要限速的进程"
@@ -375,6 +380,8 @@ def apply_limits(items: list[dict], bps: int) -> tuple[bool, str]:
 
 
 def remove_limits(paths: list[str] | None = None) -> tuple[bool, str]:
+    if not IS_WINDOWS:
+        return True, "Linux 版无需清理限速规则"
     if paths:
         names = [qos_name(p) for p in paths if p]
         if not names:
@@ -400,6 +407,8 @@ def remove_limits(paths: list[str] | None = None) -> tuple[bool, str]:
 # Firewall full block
 # ---------------------------------------------------------------------------
 def apply_blocks(items: list[dict], enabled: bool = True) -> tuple[bool, str]:
+    if not IS_WINDOWS:
+        return False, "Linux 版暂不支持按进程防火墙断网；请使用 Windows 版"
     items = [x for x in items if x.get("path")]
     if not items:
         return False, "请先在首页勾选需要断网的进程"
@@ -432,6 +441,8 @@ def apply_blocks(items: list[dict], enabled: bool = True) -> tuple[bool, str]:
 
 
 def remove_blocks(paths: list[str] | None = None) -> tuple[bool, str]:
+    if not IS_WINDOWS:
+        return True, "Linux 版无需清理断网规则"
     if paths:
         names = []
         for p in paths:
@@ -514,7 +525,7 @@ def _strip_block(text: str) -> str:
 
 
 def write_hosts(sites: list[dict], enabled: bool, redirect_ip: str = "127.0.0.1") -> tuple[bool, str]:
-    if not IS_WINDOWS or PREVIEW:
+    if PREVIEW:
         return True, "OK"
     hp = hosts_path()
     try:
@@ -561,7 +572,14 @@ def write_hosts(sites: list[dict], enabled: bool, redirect_ip: str = "127.0.0.1"
 
 
 def _flush_dns():
-    if not IS_WINDOWS or PREVIEW:
+    if PREVIEW:
+        return
+    if not IS_WINDOWS:
+        for cmd in (["resolvectl", "flush-caches"], ["systemd-resolve", "--flush-caches"]):
+            try:
+                subprocess.run(cmd, capture_output=True, timeout=10)
+            except Exception:
+                pass
         return
     try:
         ctypes.windll.dnsapi.DnsFlushResolverCache()
@@ -673,7 +691,7 @@ class BlockServer:
     def start(self) -> tuple[bool, str]:
         if self.httpd:
             return True, "OK"
-        if not IS_WINDOWS or PREVIEW:
+        if PREVIEW:
             self.httpd = object()  # type: ignore
             return True, "OK"
         try:
@@ -710,7 +728,7 @@ BLOCK_SERVER = BlockServer()
 
 def apply_sites(sites: list[dict], enabled: bool) -> tuple[bool, str]:
     """Start/stop the 404 server and rewrite the hosts block atomically."""
-    if not IS_WINDOWS or PREVIEW:
+    if PREVIEW:
         return True, "OK"
     server_ok = True
     server_msg = "OK"
@@ -734,8 +752,8 @@ def apply_sites(sites: list[dict], enabled: bool) -> tuple[bool, str]:
 
 
 def test_local_404() -> tuple[bool, str]:
-    if not (IS_WINDOWS or PREVIEW):
-        return False, "仅 Windows 支持"
+    if PREVIEW:
+        return False, "预览环境不启动真实端口"
     if not BLOCK_SERVER.running:
         return False, "404 拦截服务未启动"
     try:
