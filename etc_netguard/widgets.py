@@ -46,6 +46,22 @@ from . import icons
 from .theme import ACCENT, ACCENT_2, BORDER, CARD, DANGER, MUTED, TEXT, TEXT_DIM, WARNING
 
 
+
+
+def stop_animation(anim):
+    """Stop a QAbstractAnimation that may already have been C++-deleted.
+
+    PyQt wraps animations started with DeleteWhenStopped; keeping the Python
+    wrapper around and calling stop() later raises "wrapped C/C++ object has
+    been deleted".  That exception inside a Qt slot aborts the process.
+    """
+    if anim is None:
+        return
+    try:
+        anim.stop()
+    except (RuntimeError, TypeError):
+        pass
+
 def _mix(c1: str, c2: str, t: float) -> QColor:
     a, b = QColor(c1), QColor(c2)
     return QColor(
@@ -95,35 +111,43 @@ class Page(QWidget):
         self.body_layout = QVBoxLayout(self.body)
         self.body_layout.setContentsMargins(30, 22, 30, 22)
         self.body_layout.setSpacing(16)
+        # One permanent opacity effect per page.  Old code cleared the effect
+        # with setGraphicsEffect(None), which deletes the C++ object while the
+        # animation can still reference it -> crash on repeated page switches.
+        self._fx = QGraphicsOpacityEffect(self.body)
+        self._fx.setOpacity(1.0)
+        self._fx.setEnabled(False)
+        self.body.setGraphicsEffect(self._fx)
+        self._anim = None
+        self._move_anim = None
 
     def showEvent(self, event):  # noqa: N802
         super().showEvent(event)
         self.animate_in()
 
     def animate_in(self):
-        self._fx = QGraphicsOpacityEffect(self.body)
+        stop_animation(self._anim)
+        stop_animation(self._move_anim)
+        self._fx.setEnabled(True)
         self._fx.setOpacity(0.0)
-        self.body.setGraphicsEffect(self._fx)
-        self._anim = QPropertyAnimation(self._fx, b"opacity", self)
-        self._anim.setDuration(260)
-        self._anim.setStartValue(0.0)
-        self._anim.setEndValue(1.0)
-        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim = QPropertyAnimation(self._fx, b"opacity", self)
+        anim.setDuration(240)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.finished.connect(
+            lambda a=anim: self._fx.setEnabled(False) if self._anim is a else None
+        )
+        self._anim = anim
         start = self.body.pos()
         move = QPropertyAnimation(self.body, b"pos", self)
-        move.setDuration(300)
-        move.setStartValue(QPoint(start.x(), start.y() + 14))
+        move.setDuration(280)
+        move.setStartValue(QPoint(start.x(), start.y() + 12))
         move.setEndValue(start)
         move.setEasingCurve(QEasingCurve.OutCubic)
         self._move_anim = move
         move.start(QPropertyAnimation.DeleteWhenStopped)
-        self._anim.start(QPropertyAnimation.DeleteWhenStopped)
-        QTimer.singleShot(320, self._clear_effect)
-
-    def _clear_effect(self):
-        if self._fx is not None:
-            self.body.setGraphicsEffect(None)
-            self._fx = None
+        anim.start(QPropertyAnimation.DeleteWhenStopped)
 
 
 class NavItem(QWidget):
@@ -315,6 +339,7 @@ class Toast(QWidget):
         self._kind = kind
         self._text = text
         self._timer.stop()
+        stop_animation(self._anim)
         self.setFixedHeight(48)
         fm = QFontMetrics(self.font())
         self.setFixedWidth(min(max(240, fm.horizontalAdvance(text) + 76), 620))
@@ -339,6 +364,7 @@ class Toast(QWidget):
         self.move(self._target_pos(offset))
 
     def _fade_out(self):
+        stop_animation(self._anim)
         self._anim = QPropertyAnimation(self._fx, b"opacity", self)
         self._anim.setDuration(220)
         self._anim.setStartValue(self._fx.opacity())
@@ -483,11 +509,11 @@ class WizardArt(QWidget):
         self.phase = 0.0
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
-        self.timer.start(55)
+        self.timer.start(70)
         self.setMinimumSize(330, 360)
 
     def _tick(self):
-        self.phase = (self.phase + 0.035) % 1.0
+        self.phase = (self.phase + 0.045) % 1.0
         self.update()
 
     def hideEvent(self, event):  # noqa: N802

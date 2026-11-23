@@ -86,10 +86,10 @@ class Shell(QWidget):
         self.phase = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
-        self._timer.start(90)
+        self._timer.start(170)
 
     def _tick(self):
-        self.phase = (self.phase + 0.006) % 1.0
+        self.phase = (self.phase + 0.011) % 1.0
         if self.isVisible():
             self.update()
 
@@ -418,12 +418,14 @@ class MainWindow(QMainWindow):
 
     def _restore_sites(self):
         def done(res):
-            ok, msg = res
+            ok, msg = res if isinstance(res, tuple) else (False, str(res))
             if not ok:
                 self.state.sites_enabled = False
                 self.state.save()
-                self.toast.show_message(f"网站拦截未能恢复：{msg}", "error", 4500)
-                self.sync_ui()
+                self.toast.show_message(f"网站拦截未能恢复：{msg}", "error", 5000)
+            elif msg and msg != "OK":
+                self.toast.show_message(f"网站拦截：{msg}", "warn", 5200)
+            self.sync_ui()
         self._run(backend.apply_sites, self.state.sites, True, on_done=done, passive=True)
 
     # ------------------------------------------------------------------
@@ -720,7 +722,10 @@ class MainWindow(QMainWindow):
                 self.state.sites_enabled = checked
                 self.state.save()
                 self.sync_ui()
-                self.toast.show_message("网站拦截已启用 · 命中返回 404" if checked else "网站拦截已关闭", "ok")
+                if checked and msg and msg != "OK":
+                    self.toast.show_message(f"网站拦截已启用：{msg}", "warn", 5200)
+                else:
+                    self.toast.show_message("网站拦截已启用 · 命中返回 404" if checked else "网站拦截已关闭", "ok")
             else:
                 self.toast.show_message(f"网站拦截设置失败：{msg}", "error", 4800)
                 self.sites.refresh_view()
@@ -731,21 +736,25 @@ class MainWindow(QMainWindow):
         if not self.state.add_site(domain, name):
             self.toast.show_message("这个网站已经在列表里了", "warn")
             return
-        if self.state.sites_enabled:
-            def done(res):
-                ok, msg = res if isinstance(res, tuple) else (False, str(res))
-                if not ok:
-                    self.state.sites_enabled = False
-                    self.state.save()
-                    self.toast.show_message(f"网站规则生效失败：{msg}", "error", 4600)
-                else:
-                    self.toast.show_message(f"已添加 {domain} · 访问返回 404", "ok")
-                self.sync_ui()
+        # Adding a site means the user expects it blocked immediately; the old
+        # build only saved it while the master switch was off, which looked
+        # like "the blocked site still opens".
+        self.state.sites_enabled = True
+        self.state.save()
 
-            self._run(backend.apply_sites, self.state.sites, True, on_done=done, busy_message="正在写入新的网站规则…")
-        else:
+        def done(res):
+            ok, msg = res if isinstance(res, tuple) else (False, str(res))
+            if not ok:
+                self.state.sites_enabled = False
+                self.state.save()
+                self.toast.show_message(f"网站规则生效失败：{msg}", "error", 5000)
+            elif msg and msg != "OK":
+                self.toast.show_message(f"已添加 {domain}：{msg}", "warn", 5200)
+            else:
+                self.toast.show_message(f"已添加 {domain} · 访问返回 404", "ok")
             self.sync_ui()
-            self.toast.show_message(f"已保存 {domain}，启用总开关后生效", "ok")
+
+        self._run(backend.apply_sites, self.state.sites, True, on_done=done, busy_message="正在写入新的网站规则…")
 
     def remove_site(self, domain: str):
         if not self._require_pw("删除网站规则", "删除网站拦截规则需要关闭密码。"):
@@ -758,6 +767,8 @@ class MainWindow(QMainWindow):
                     self.state.sites_enabled = False
                     self.state.save()
                     self.toast.show_message(f"更新网站规则失败：{msg}", "error")
+                elif msg and msg != "OK":
+                    self.toast.show_message(f"网站规则已删除：{msg}", "warn", 5200)
                 else:
                     self.toast.show_message("网站规则已删除", "ok")
                 self.sync_ui()
@@ -940,33 +951,42 @@ class MainWindow(QMainWindow):
             self.onboarding._center()
 
     def quit_app(self):
+        if self._quitting:
+            return
         self._quitting = True
+        self.state.save()
         native.NATIVE.set_close_guard(False)
+        if hasattr(self, "scan_timer"):
+            self.scan_timer.stop()
+        if hasattr(self, "_close_poll"):
+            self._close_poll.stop()
+        self.hide()
+        # QThread objects must never be destroyed while run() is executing.
+        # Wait for scans/actions first; terminate only as a last resort.
+        for w in list(self._workers):
+            try:
+                if not w.isRunning():
+                    continue
+                w.wait(3000)
+                if w.isRunning():
+                    w.terminate()
+                    w.wait(1500)
+            except Exception:
+                pass
         if hasattr(self, "guard"):
             self.guard.stop()
         backend.BLOCK_SERVER.stop()
         if self.tray:
             self.tray.hide()
-        for w in list(self._workers):
-            try:
-                w.wait(2500)
-            except Exception:
-                pass
         QApplication.quit()
 
     def closeEvent(self, event):  # noqa: N802
         if self._quitting:
-            backend.BLOCK_SERVER.stop()
             event.accept()
             return
         if self.state.password_enabled:
             event.ignore()
             QTimer.singleShot(0, self.request_close)
             return
-        self._quitting = True
-        native.NATIVE.set_close_guard(False)
-        if hasattr(self, "guard"):
-            self.guard.stop()
-        backend.BLOCK_SERVER.stop()
-        event.accept()
-        QApplication.quit()
+        event.ignore()
+        self.quit_app()

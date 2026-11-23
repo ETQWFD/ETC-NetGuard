@@ -88,6 +88,7 @@ class HomePage(Page):
         self._signature = None
         self._rebuilding = False
         self._icon_cache: dict[str, QIcon] = {}
+        self._letter_cache: dict[str, QIcon] = {}
         self._icons = QFileIconProvider()
         self._build()
         self.update_stats()
@@ -213,7 +214,13 @@ class HomePage(Page):
                 if len(self._icon_cache) < 800:
                     self._icon_cache[key] = ic
                 return ic
-        return QIcon(icons.letter_pixmap(name, 26))
+        lk = (name or "app.exe").lower()
+        if lk not in self._letter_cache:
+            if len(self._letter_cache) < 400:
+                self._letter_cache[lk] = QIcon(icons.letter_pixmap(name, 26))
+            else:
+                return QIcon(icons.letter_pixmap(name, 26))
+        return self._letter_cache[lk]
 
     def key_for(self, row: dict) -> str:
         return self.state.process_key(row)
@@ -229,8 +236,11 @@ class HomePage(Page):
 
     def set_processes(self, rows: list[dict]):
         self._rows = rows
-        sig = tuple((r["pid"], r.get("path", ""), r.get("name", "")) for r in rows)
+        # PIDs change as instances restart; rebuilding the whole table for a
+        # PID-only change makes the UI flicker and burn CPU every few seconds.
+        sig = tuple((r.get("path", ""), r.get("name", "")) for r in rows)
         if sig == self._signature:
+            self._refresh_pid_cells()
             self._refresh_status_cells()
             self.update_stats()
             return
@@ -284,6 +294,19 @@ class HomePage(Page):
         self._apply_filter()
         self.table.verticalScrollBar().setValue(scroll)
         self.update_stats()
+
+    def _refresh_pid_cells(self):
+        for i, row in enumerate(self._rows):
+            item = self.table.item(i, 1)
+            if not item:
+                continue
+            pid = row.get("pid")
+            item.setText(str(pid) if pid is not None else "")
+            pids = row.get("pids") or [pid]
+            if len(pids) > 1:
+                item.setToolTip(f"{len(pids)} 个实例 · PID " + "、".join(str(x) for x in pids))
+            else:
+                item.setToolTip("")
 
     def _refresh_status_cells(self):
         for i, row in enumerate(self._rows):
@@ -806,7 +829,7 @@ class SitesPage(Page):
         ni = QLabel()
         ni.setPixmap(icons.colored_svg("shield-check", ACCENT, 16))
         nl.addWidget(ni)
-        text = label("HTTP 访问会返回自绘的 404 拦截页；HTTPS 站点会被直接阻断。应用关闭后拦截规则仍然保留。", "Tiny")
+        text = label("HTTP 访问会返回自绘的 404 拦截页；HTTPS 站点会被直接阻断。若浏览器开启“安全 DNS/DoH”，请关闭它并重启浏览器，否则可能绕过 hosts。应用关闭后规则仍然保留。", "Tiny")
         text.setWordWrap(True)
         nl.addWidget(text, 1)
         self.body_layout.addWidget(note)
@@ -852,9 +875,16 @@ class SitesPage(Page):
         n = len(self.state.sites)
         self.site_count.setText(f"{n} 个")
         active = self.state.sites_enabled and n > 0
-        self.master_sub.setText(f"已启用 · {n} 个网站返回 404" if active else ("已关闭 · 规则暂不生效" if n else "尚未添加网站"))
+        running = bool(backend.BLOCK_SERVER.running) or backend.PREVIEW
+        self.master_sub.setText(f"已启用 · {n} 个域名被阻断" if active else ("已关闭 · 规则暂不生效" if n else "尚未添加网站"))
         self.status_dot.setStyleSheet(f"background:{ACCENT if active else MUTED}; border-radius:4px;")
-        self.status_label.setText("拦截服务运行中 · 127.0.0.1:80" if active else "服务未启动")
+        if active and running:
+            status = "规则已启用 · 命中返回 404"
+        elif active:
+            status = "域名已阻断 · 404 服务未启动"
+        else:
+            status = "服务未启动"
+        self.status_label.setText(status)
         self.status_label.setStyleSheet(f"color:{ACCENT if active else MUTED}; font-size:11px;")
 
         while self.site_list.count():
@@ -1019,11 +1049,18 @@ class SettingsPage(Page):
         admin = backend.is_admin()
         self.admin_row[1].setText("已授权" if admin else "受限")
         self.admin_row[1].setStyleSheet(f"color:{ACCENT if admin else DANGER}; font-size:13px; font-weight:600;")
-        self.server_row[1].setText("运行中 · 127.0.0.1:80" if (self.state.sites_enabled and self.state.sites) else "未启动")
+        site_on = bool(self.state.sites_enabled and self.state.sites)
+        server_on = bool(backend.BLOCK_SERVER.running) or backend.PREVIEW
+        self.server_row[1].setText(
+            ("运行中 · 127.0.0.1:80" if server_on else "域名已阻断 · 404 服务未启动")
+            if site_on else "未启动"
+        )
         n = self.state.restriction_count()
         bits = []
         bits.append("关闭密码已启用" if self.state.password_enabled else "关闭密码未设置")
         bits.append(f"{n} 项限制")
         bits.append(f"黑名单 {len(self.state.blacklist)} 个")
         self.security_info.setText(" · ".join(bits))
-        self.server_row[1].setStyleSheet(f"color:{ACCENT if (self.state.sites_enabled and self.state.sites) else MUTED}; font-size:13px;")
+        self.server_row[1].setStyleSheet(
+            f"color:{ACCENT if (site_on and server_on) else (WARNING if site_on else MUTED)}; font-size:13px;"
+        )

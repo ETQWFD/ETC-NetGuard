@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 APP_NAME = "ETC NetGuard"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 AUTHOR = "etc"
 REPO_URL = "https://github.com/ETQWFD/ETC-NetGuard"
 
@@ -480,13 +480,17 @@ def normalize_domain(text: str) -> str:
 
 
 def domain_variants(domain: str) -> list[str]:
-    """Block both the apex and the www host, whichever one the user typed."""
+    """Block the apex plus the hosts people actually type on phones."""
     d = normalize_domain(domain)
     if not d:
         return []
-    if d.startswith("www."):
-        return [d, d[4:]]
-    return [d, "www." + d]
+    apex = d
+    for prefix in ("www.", "m.", "mobile."):
+        if d.startswith(prefix) and "." in d[len(prefix):]:
+            apex = d[len(prefix):]
+            break
+    out = [d, apex, "www." + apex, "m." + apex, "mobile." + apex]
+    return list(dict.fromkeys(out))
 
 
 # Backwards-compatible internal alias
@@ -498,7 +502,7 @@ def _strip_block(text: str) -> str:
     return pattern.sub("\n", text).strip() + "\n"
 
 
-def write_hosts(sites: list[dict], enabled: bool) -> tuple[bool, str]:
+def write_hosts(sites: list[dict], enabled: bool, redirect_ip: str = "127.0.0.1") -> tuple[bool, str]:
     if not IS_WINDOWS or PREVIEW:
         return True, "OK"
     hp = hosts_path()
@@ -521,12 +525,22 @@ def write_hosts(sites: list[dict], enabled: bool) -> tuple[bool, str]:
                             domains.append(v)
             block = [MARK_START, "# Managed by ETC NetGuard. Do not edit this section.",
                      "# Any listed domain resolves to the local 404 interception page."]
-            block += [f"127.0.0.1 {d}" for d in domains]
+            v4 = redirect_ip if redirect_ip else "127.0.0.1"
+            v6 = "::1"
+            # IPv4 + IPv6: Windows prefers AAAA first on many networks, so a
+            # hosts file with only 127.0.0.1 can be bypassed over IPv6.
+            block += [f"{v4} {d}" for d in domains]
+            block += [f"{v6} {d}" for d in domains]
             block.append(MARK_END)
             clean = clean.rstrip() + "\n\n" + "\n".join(block) + "\n"
         hp.parent.mkdir(parents=True, exist_ok=True)
         with open(str(hp), "w", encoding="utf-8", newline="\r\n") as f:
             f.write(clean)
+        # Read-back verification catches antivirus/EDR silently reverting hosts.
+        if enabled and sites:
+            written = hp.read_text(encoding="utf-8", errors="ignore")
+            if MARK_START not in written or not any(d in written for d in domains):
+                return False, "hosts 写入后校验失败，可能被安全软件拦截"
         _flush_dns()
         return True, "OK"
     except PermissionError:
@@ -539,7 +553,16 @@ def _flush_dns():
     if not IS_WINDOWS or PREVIEW:
         return
     try:
+        ctypes.windll.dnsapi.DnsFlushResolverCache()
+    except Exception:
+        pass
+    try:
         subprocess.run(["ipconfig", "/flushdns"], capture_output=True, timeout=20,
+                       creationflags=0x08000000)
+    except Exception:
+        pass
+    try:
+        subprocess.run(["ipconfig", "/registerdns"], capture_output=True, timeout=25,
                        creationflags=0x08000000)
     except Exception:
         pass
@@ -678,17 +701,24 @@ def apply_sites(sites: list[dict], enabled: bool) -> tuple[bool, str]:
     """Start/stop the 404 server and rewrite the hosts block atomically."""
     if not IS_WINDOWS or PREVIEW:
         return True, "OK"
+    server_ok = True
+    server_msg = "OK"
     if enabled and sites:
-        ok, msg = BLOCK_SERVER.start()
-        if not ok:
-            return False, msg
-    ok, msg = write_hosts(sites, enabled)
+        server_ok, server_msg = BLOCK_SERVER.start()
+    # Even when port 80 is taken, the hosts block must still be written.  In
+    # that case point blocked hosts at 0.0.0.0 so they fail closed instead of
+    # being served by whatever happens to own port 80.
+    redirect_ip = "127.0.0.1" if server_ok else "0.0.0.0"
+    ok, msg = write_hosts(sites, enabled, redirect_ip)
     if not ok:
         if enabled and sites:
             BLOCK_SERVER.stop()
         return False, msg
     if not enabled or not sites:
         BLOCK_SERVER.stop()
+        return True, "OK"
+    if not server_ok:
+        return True, f"域名已被阻断，但 404 页面服务未启动（{server_msg}）。"
     return True, "OK"
 
 
@@ -713,7 +743,7 @@ def clear_all_rules() -> list[str]:
     msgs.append("限速规则已清除" if ok else f"限速清除失败：{msg}")
     ok, msg = remove_blocks(None)
     msgs.append("断网规则已清除" if ok else f"断网清除失败：{msg}")
-    ok, msg = write_hosts([], False)
+    ok, msg = write_hosts([], False, "127.0.0.1")
     BLOCK_SERVER.stop()
     msgs.append("网站拦截已关闭" if ok else f"hosts 恢复失败：{msg}")
     return msgs

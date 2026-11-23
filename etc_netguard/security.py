@@ -143,3 +143,9 @@ class GuardWorker(QThread):
         self._stop = True
         self.requestInterruption()
         self.wait(2500)
+        if self.isRunning():
+            try:
+                self.terminate()
+                self.wait(1200)
+            except Exception:
+                pass

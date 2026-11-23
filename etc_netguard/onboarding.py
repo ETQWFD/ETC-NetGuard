@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
 
 from . import icons
 from .theme import ACCENT, ACCENT_2, MUTED, TEXT, TEXT_DIM
-from .widgets import WizardArt, label
+from .widgets import WizardArt, label, stop_animation
 
 
 STEPS = [
@@ -140,6 +140,9 @@ class OnboardingOverlay(QWidget):
         self._closing = False
         self.card = OnboardCard(self)
         self.card.setFixedSize(980, 560)
+        self._card_fx = QGraphicsOpacityEffect(self.card)
+        self.card.setGraphicsEffect(self._card_fx)
+        self._card_fx.setOpacity(1.0)
         lay = QVBoxLayout(self.card)
         lay.setContentsMargins(38, 26, 38, 26)
         lay.setSpacing(14)
@@ -213,6 +216,7 @@ class OnboardingOverlay(QWidget):
         stage_lay.addLayout(right, 1)
         self.stage_fx = QGraphicsOpacityEffect(self.stage)
         self.stage_fx.setOpacity(1)
+        self.stage.setGraphicsEffect(self.stage_fx)
         lay.addWidget(self.stage, 1)
 
         # footer
@@ -263,16 +267,20 @@ class OnboardingOverlay(QWidget):
 
     def open_at(self, step: int = 0):
         self._closing = False
+        self._busy = False
+        for attr in ("_card_fade", "_card_anim", "_finish_anim"):
+            stop_animation(getattr(self, attr, None))
+            setattr(self, attr, None)
         self._set_step(step, animate=False)
         self.show()
         self.raise_()
-        effect = QGraphicsOpacityEffect(self.card)
-        self.card.setGraphicsEffect(effect)
-        effect.setOpacity(0)
-        anim = QPropertyAnimation(effect, b"opacity", self)
+        self._card_fx.setEnabled(True)
+        self._card_fx.setOpacity(0.0)
+        anim = QPropertyAnimation(self._card_fx, b"opacity", self)
         anim.setDuration(260)
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
+        anim.finished.connect(lambda: self._card_fx.setEnabled(False))
         anim.start(QPropertyAnimation.DeleteWhenStopped)
         self._card_fade = anim
         self._center()
@@ -284,7 +292,6 @@ class OnboardingOverlay(QWidget):
         move.setEasingCurve(QEasingCurve.OutCubic)
         move.start(QPropertyAnimation.DeleteWhenStopped)
         self._card_anim = move
-        QTimer.singleShot(360, lambda: self.card.setGraphicsEffect(None))
 
     def _set_step(self, i: int, animate: bool = True):
         i = max(0, min(len(STEPS) - 1, i))
@@ -313,8 +320,8 @@ class OnboardingOverlay(QWidget):
         if target < 0:
             return
         self._busy = True
-        self.stage.setGraphicsEffect(self.stage_fx)
-        self.stage_fx.setOpacity(1)
+        self.stage_fx.setEnabled(True)
+        self.stage_fx.setOpacity(1.0)
         out = QPropertyAnimation(self.stage_fx, b"opacity", self)
         out.setDuration(120)
         out.setStartValue(1.0)
@@ -336,16 +343,19 @@ class OnboardingOverlay(QWidget):
 
     def _end_stage_fade(self):
         self._busy = False
-        self.stage.setGraphicsEffect(None)
+        self.stage_fx.setOpacity(1.0)
 
     def finish(self):
         if self._closing:
             return
         self._closing = True
-        effect = QGraphicsOpacityEffect(self.card)
-        self.card.setGraphicsEffect(effect)
-        effect.setOpacity(1.0)
-        anim = QPropertyAnimation(effect, b"opacity", self)
+        self._busy = False
+        for attr in ("_card_fade", "_out", "_in", "_card_anim"):
+            stop_animation(getattr(self, attr, None))
+            setattr(self, attr, None)
+        self._card_fx.setEnabled(True)
+        self._card_fx.setOpacity(1.0)
+        anim = QPropertyAnimation(self._card_fx, b"opacity", self)
         anim.setDuration(200)
         anim.setStartValue(1.0)
         anim.setEndValue(0.0)
